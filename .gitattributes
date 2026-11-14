@@ -1,0 +1,6 @@
+# 技能包会被 macOS / Linux / Windows 三端解压使用，统一按 LF 入库，避免 CRLF 污染
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.zip binary
