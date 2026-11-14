@@ -94,6 +94,7 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 - 每张图旁边保留同名 `.dsl`，并在回复里给出「图型 + 图题 + 命令」三行摘要，方便复现。
 - 服务端只做 2 小时留存（普通账号），**产物必须落到本地**。
 - 用户要「一套图」时，先给图清单（图名 + kind），确认后再批量生成，避免一次烧掉几十积分。
+- **SVG 可直接导入 Visio / Word / PowerPoint / Illustrator**：文件里每行（竖排时每字）都是独立 `<text>` 且自带 `x`/`y`，不用 `<tspan>` 承担定位，`font-size` 带 `px` 单位，字体族只写两级 `SimSun, serif`。这是为兼容 Office 系解析器专门做的——Visio 会丢弃 `<tspan>` 上的坐标，把多行文字堆到起点（表现为"文字挤成一团"）。若导入后**箭头或基数符号丢失**，则是 Visio 对 `<marker>` 支持不完整，属已知限制：改用 Word/PPT 插入 SVG，或直接交付 PNG 600 DPI。
 
 ## 6. 两个落地示例
 
