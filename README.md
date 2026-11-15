@@ -16,7 +16,8 @@
 | 输出格式 | SVG 矢量 + PNG（150 / 300 / 600 DPI） |
 | 规范自检 | 响应头 `X-Diagram-Errors` 返回规范问题条数，可先校验后出图 |
 | 批量渲染 | 单次请求最多 10 张 |
-| 零依赖 CLI | `scripts/ds.mjs` 只用 Node.js 内置模块，无需 `npm install` |
+| **SQL 体检** | 本地分析建表脚本，找出引擎推断不到的业务联系（审核人、发布者、多对多中介表），生成概念 E-R DSL 骨架 |
+| 零依赖 CLI | `scripts/ds.mjs` + `scripts/sql-audit.mjs` 只用 Node.js 内置模块，无需 `npm install` |
 
 ---
 
@@ -48,9 +49,11 @@ git clone https://github.com/LeastBit/diagram-studio-skill.git \
 ├── SKILL.md
 ├── references/
 │   ├── dsl-syntax.md        # 13 种图型的 DSL 伪代码语法
+│   ├── sql-to-erd.md        # 脏 SQL → 规范 E-R 图：补全引擎看不见的关系
 │   └── api-reference.md     # 鉴权 / 计费 / 端点 / 错误码
 └── scripts/
-    └── ds.mjs               # 零依赖 CLI
+    ├── ds.mjs               # 零依赖 CLI（出图）
+    └── sql-audit.mjs        # 零依赖 CLI（SQL 体检 / 生成 DSL 骨架）
 ```
 
 ---
@@ -95,6 +98,38 @@ node scripts/ds.mjs check --kind flowchart --file fc.dsl
 ```
 
 `check` 走批量接口的 JSON 模式，返回每条违规的 `code`、`message` 与 `rule`，便于模型自行修正后重试。
+
+---
+
+## 从现成 SQL 出 E-R 图
+
+真实毕设库多半是从代码生成器导出的：**没有一条外键、字段名靠拼接**。直接丢给渲染接口，出来的 E-R 图会少一半联系——因为引擎只认两件事：显式 `FOREIGN KEY`，和 `xxx_id` 能对上表名的字段。
+
+先做本地体检（不联网、不消耗积分）：
+
+```bash
+# 体检报告：哪些联系能画、哪些画不出来、各自该怎么修
+node scripts/sql-audit.mjs --file schema.sql
+
+# 直接生成概念 E-R DSL 骨架（含待确认项注释）
+node scripts/sql-audit.mjs --file schema.sql --emit-dsl er/model.dsl --title "XX 系统 E-R 模型"
+
+# 出图：N 张分 E-R 图 + 总 E-R 图
+node scripts/ds.mjs er --file er/model.dsl --outdir figures/er
+```
+
+报告把问题分成四类：
+
+| 类别 | 含义 | 处理 |
+|---|---|---|
+| T1 可推断 | 外键规范，引擎自动画 | 不用管 |
+| T2 可救 | 字段在，但命名让引擎认不出（`dept_id`、`uid`） | 改名或手写联系 |
+| **T3 结构缺失** | 业务上必然有联系，库里连字段都没有（审核人、发布者、回复人） | **只能靠读业务补** |
+| T4 不该画 | 字典、config、token、日志表 | 明确排除 |
+
+实测一个真实的宠物领养毕设库（14 张表、0 条外键）：能画出 10 条联系，另找出 5 条高优先级问题——两张审核表都缺审核人字段、认领表里用了领养表的前缀、一个 `yonghu_id` 同时充当申请人和审核人。
+
+方法论、八种典型病症的前后对照、改库还是只画图的决策树见 [`references/sql-to-erd.md`](references/sql-to-erd.md)。
 
 ---
 
