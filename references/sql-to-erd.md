@@ -81,11 +81,11 @@ ALTER TABLE chongwulingyangshenhe
   ADD COLUMN shenhe_user_id INT DEFAULT NULL COMMENT '审核人（管理员）';
 ```
 
-概念图里对应两条联系：
+概念图里对应两条联系（`between` 后面必须写**英文别名**，不能写中文实体名）：
 
 ```
-relationship 领养申请 as Apply  between 用户, 宠物领养审核 cardinality 1:n
-relationship 领养审核 as Review between 管理员, 宠物领养审核 cardinality 1:n
+relationship 领养申请 as Apply  between T_yonghu, T_shenhe cardinality 1:n
+relationship 领养审核 as Review between T_users,  T_shenhe cardinality 1:n
 ```
 
 ### 第三步：定名与基数
@@ -182,7 +182,7 @@ CREATE TABLE `course_selection` (
 引擎会把它画成**独立实体**，但概念模型里它是 `学生 m:n 课程` 的联系，「成绩」是**联系属性**：
 
 ```
-relationship 选修 as Enroll between 学生, 课程 cardinality m:n {
+relationship 选修 as Enroll between T_student, T_course cardinality m:n {
   attribute 成绩
 }
 ```
