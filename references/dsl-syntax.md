@@ -111,7 +111,7 @@ node scripts/ds.mjs ucv --file system.dsl --with-overview            # 额外给
 ```
 
 ```bash
-curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
+curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/usecase/views" \
   -H "Content-Type: application/json" \
   -d '{"source": "…同一段 usecase DSL…", "format": "svg"}'
 ```

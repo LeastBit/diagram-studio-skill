@@ -1,8 +1,8 @@
 # API 参考（SE Diagram Studio v1）
 
-- **Base URL**：`https://yougood.ggff.net`
+- **Base URL**：由 `DIAGRAM_STUDIO_BASE` 提供（示例 `https://你的服务地址`）；地址随部署变化，不要在代码里写死
 - **协议**：HTTPS，JSON 请求体
-- **在线文档**：<https://yougood.ggff.net/api-docs>
+- **在线文档**：`<Base URL>/api-docs`
 - **能力自述（机器可读）**：`GET /api/v1/capabilities` —— 返回 13 种图型的 `kind`、名称、标准、一句话语法、完整示例。写 DSL 前先取一次，可whereas 保证语法与线上版本一致。
 
 ---
@@ -81,7 +81,7 @@
 | `Cache-Control` | `no-store` |
 
 ```bash
-curl -X POST https://yougood.ggff.net/api/v1/render/svg \
+curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
   -H "Authorization: Bearer $DIAGRAM_STUDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"kind":"flowchart","source":"start S: 开始\nprocess P: 处理\nend E: 结束\nS -> P -> E"}' \

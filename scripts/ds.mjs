@@ -10,14 +10,20 @@
  *   node ds.mjs er     --file schema.sql --outdir er
  *   node ds.mjs ucv    --file usecase.dsl --outdir out/usecase   按角色拆成多张用例图（每角色 1 张）
  *
- * 通用参数：--base https://yougood.ggff.net / --key sk-xxx
+ * 通用参数：--base https://你的服务地址 / --key sk-xxx
  * 也可用环境变量 DIAGRAM_STUDIO_BASE / DIAGRAM_STUDIO_API_KEY。
+ *
+ * 服务地址不写死在脚本里：自建服务的域名会变（换域名、过期、迁移），
+ * 写死只会在变更后表现为"连不上"，还看不出是地址问题。首次使用先跑 `doctor` 自检。
  */
 import fs from "node:fs";
 import path from "node:path";
+import dns from "node:dns/promises";
 
-const BASE = (process.env.DIAGRAM_STUDIO_BASE || "https://yougood.ggff.net").replace(/\/+$/, "");
+/** 由使用者提供；技能不内置任何服务地址。 */
+const DEFAULT_BASE = "";
 const KEY = process.env.DIAGRAM_STUDIO_API_KEY || "";
+let base = String(process.env.DIAGRAM_STUDIO_BASE || DEFAULT_BASE).replace(/\/+$/, "");
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -35,12 +41,23 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
-const base = (typeof args.base === "string" ? args.base : BASE).replace(/\/+$/, "");
+if (typeof args.base === "string") base = args.base.replace(/\/+$/, "");
 const key = typeof args.key === "string" ? args.key : KEY;
 
 function die(message, code = 1) {
   console.error(`✗ ${message}`);
   process.exit(code);
+}
+
+/** 网络类命令的入口守卫：地址没配就直接说清楚怎么配，而不是抛一个 fetch failed。 */
+function requireBase() {
+  if (base) return base;
+  die([
+    "未配置服务地址。",
+    "  export DIAGRAM_STUDIO_BASE='https://你的服务地址'",
+    "  或在命令后追加 --base https://你的服务地址",
+    "自检：node ds.mjs doctor",
+  ].join(String.fromCharCode(10)));
 }
 
 function authHeaders() {
@@ -115,6 +132,7 @@ async function describeError(response) {
 }
 
 async function cmdKinds() {
+  requireBase();
   const response = await fetch(`${base}/api/v1/capabilities`);
   if (!response.ok) die(await describeError(response));
   const data = await response.json();
@@ -127,6 +145,7 @@ async function cmdKinds() {
 }
 
 async function cmdSyntax() {
+  requireBase();
   const kind = args._[1];
   if (!kind) die("用法：node ds.mjs syntax <kind>");
   const response = await fetch(`${base}/api/v1/capabilities`);
@@ -141,6 +160,7 @@ async function cmdSyntax() {
 }
 
 async function cmdRender() {
+  requireBase();
   preflight();
   const kind = args.kind;
   if (typeof kind !== "string") die("缺少 --kind，可用 node ds.mjs kinds 查看。");
@@ -173,6 +193,7 @@ async function cmdRender() {
 }
 
 async function cmdCheck() {
+  requireBase();
   preflight();
   const kind = args.kind;
   if (typeof kind !== "string") die("缺少 --kind。");
@@ -193,6 +214,7 @@ async function cmdCheck() {
 }
 
 async function cmdBatch() {
+  requireBase();
   preflight();
   if (typeof args.manifest !== "string") die("缺少 --manifest <json>。");
   const manifest = JSON.parse(fs.readFileSync(args.manifest, "utf8"));
@@ -221,6 +243,7 @@ async function cmdBatch() {
 }
 
 async function cmdEr() {
+  requireBase();
   // /er/views 不校验 API Key（网页 studio 也用它），不做 Key 预检，避免一条误导性提示。
   const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
   if (!source.trim()) die("缺少 --file（概念 E-R DSL 或 CREATE TABLE 语句）。");
@@ -252,6 +275,7 @@ async function cmdEr() {
 }
 
 async function cmdUsecase() {
+  requireBase();
   // /usecase/views 同样不校验 API Key，不做 Key 预检。
   const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
   if (!source.trim()) die("缺少 --file（用例图 DSL）。");
@@ -282,8 +306,45 @@ async function cmdUsecase() {
   if (!(data.viewCount > 0)) process.exitCode = 1;
 }
 
+/** 自检：地址、密钥、DNS、健康检查、能力自述。换域名或连不上时先跑这个。 */
+async function cmdDoctor() {
+  console.log("SE Diagram Studio 自检\n");
+  console.log(`  服务地址  ${base || "（未配置）"}`);
+  console.log(`  API Key   ${key ? `${key.slice(0, 6)}…${key.slice(-4)}` : "（未配置，生产环境会 401）"}`);
+  if (!base) {
+    console.log("\n✗ 先设置服务地址：export DIAGRAM_STUDIO_BASE='https://你的服务地址'");
+    process.exitCode = 1;
+    return;
+  }
+
+  let host = "";
+  try {
+    host = new URL(base).hostname;
+    const { address, family } = await dns.lookup(host);
+    console.log(`  DNS       ${host} → ${address}（IPv${family}）`);
+  } catch (error) {
+    console.log(`  DNS       ${host || base} 解析失败：${error.code || error.message}`);
+    console.log("            域名可能已过期或被撤销解析；换地址用 --base 或 DIAGRAM_STUDIO_BASE");
+  }
+
+  for (const [name, url, summarize] of [
+    ["健康检查", "/api/health", (body) => `${body?.status ?? ""} · 数据库 ${body?.database ?? "?"}`],
+    ["能力自述", "/api/v1/capabilities", (body) => `图型 ${body?.kinds?.length ?? "?"} 种`],
+  ]) {
+    const started = Date.now();
+    try {
+      const response = await fetch(`${base}${url}`, { signal: AbortSignal.timeout(10000) });
+      const body = await response.json().catch(() => null);
+      console.log(`  ${name}      ${response.status} ${Date.now() - started}ms ${summarize(body)}`);
+    } catch (error) {
+      console.log(`  ${name}      连接失败：${error.cause?.code || error.name}`);
+    }
+  }
+}
+
 const usage = `SE Diagram Studio CLI
 
+  node ds.mjs doctor
   node ds.mjs kinds
   node ds.mjs syntax <kind>
   node ds.mjs render --kind <kind> --file <dsl> [--out a.svg] [--format svg|png] [--dpi 600]
@@ -294,10 +355,11 @@ const usage = `SE Diagram Studio CLI
   node ds.mjs ucv    --file usecase.dsl [--outdir out/usecase] [--format png] [--with-overview]
                      # 用例图默认走这个：每个参与者 1 张，加 --with-overview 再多 1 张总览
 
-  环境变量：DIAGRAM_STUDIO_BASE（默认 ${BASE}）· DIAGRAM_STUDIO_API_KEY`;
+  环境变量：DIAGRAM_STUDIO_BASE（当前 ${base || "未配置"}）· DIAGRAM_STUDIO_API_KEY`;
 
 try {
-  if (cmd === "kinds") await cmdKinds();
+  if (cmd === "doctor") await cmdDoctor();
+  else if (cmd === "kinds") await cmdKinds();
   else if (cmd === "syntax") await cmdSyntax();
   else if (cmd === "render") await cmdRender();
   else if (cmd === "check") await cmdCheck();

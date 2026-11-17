@@ -7,22 +7,27 @@ metadata:
 
 # SE Diagram Studio 绘图技能
 
-把「一段中文需求」变成「一张能直接排进论文的规范插图」。渲染在云端完成（`https://yougood.ggff.net`），本技能负责：选对图型 → 写对 DSL 伪代码 → 调用 API → 检查规范错误 → 交付 SVG/PNG。
+把「一段中文需求」变成「一张能直接排进论文的规范插图」。渲染在服务端完成，本技能负责：选对图型 → 写对 DSL 伪代码 → 调用 API → 检查规范错误 → 交付 SVG/PNG。
 
-- 站点：<https://yougood.ggff.net>　在线文档：<https://yougood.ggff.net/api-docs>　能力自述：`GET /api/v1/capabilities`
+- **服务地址不写死在技能里**：由使用者用 `DIAGRAM_STUDIO_BASE` 提供（自建服务的域名会变，写死只会在换域名后表现为「连不上」）。
+- 在线文档：`<服务地址>/api-docs`　能力自述：`GET /api/v1/capabilities`
 
-## 0. 先解决 API Key（不内置、不落盘）
+## 0. 先配好服务地址与 API Key（都不内置）
+
+```bash
+export DIAGRAM_STUDIO_BASE='https://你的服务地址'   # 没有它任何命令都只会提示未配置
+export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
+node scripts/ds.mjs doctor        # 自检：地址 → DNS → 健康检查 → 图型数量
+```
+
+`doctor` 的三行输出就能定位绝大多数「连不上」：DNS 解析失败＝域名过期/拼错；连接被重置＝对端没开或中间被拦；`401`＝Key 缺失或失效。
 
 **技能里没有任何密钥，必须由用户提供。** 按以下顺序获取：
 
 1. 环境变量 `DIAGRAM_STUDIO_API_KEY`（推荐，由用户自己 export）
 2. 用户直接把 Key 贴在对话里（形如 `sk-` + 64 位十六进制）→ 仅在本次命令中通过 `--key` 传入
 
-```bash
-export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
-```
-
-禁止把 Key 写进 `SKILL.md`、脚本、示例、`.env` 或提交到 git。Key 在网页 `/dashboard/keys` 创建，只显示一次；新账号注册赠 66 积分，1 积分/张。
+禁止把 Key 与具体服务地址写进 `SKILL.md`、脚本、示例、`.env` 或提交到 git。Key 在网页 `/dashboard/keys` 创建，只显示一次；新账号注册赠 66 积分，1 积分/张。
 
 ## 1. 工作流（按顺序，不要跳）
 
@@ -111,7 +116,7 @@ node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase --with-overview
 ## 3. 直接调 API（没有脚本时）
 
 ```bash
-curl -X POST https://yougood.ggff.net/api/v1/render/svg \
+curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
   -H "Authorization: Bearer $DIAGRAM_STUDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"kind":"flowchart","source":"start S: 开始\nprocess P: 处理\nend E: 结束\nS -> P -> E"}' \
@@ -243,6 +248,7 @@ node scripts/ds.mjs ucv --file usecase.dsl --outdir figures/usecase --with-overv
 | `401` | Key 是否过期 / 复制不完整；`Authorization: Bearer sk-...` 的空格 |
 | `402` | 账号积分不足（1 积分/张） |
 | `429` | 并发 50/500 或网关 120 次/分；退避 5–10 秒，或改 batch |
+| 连不上（`fetch failed` / `ECONNRESET` / `ENOTFOUND`） | 先跑 `node scripts/ds.mjs doctor`：DNS 不解析＝域名过期或拼错；连接重置＝对端未开或链路被拦；`401`＝Key 缺失。换地址用 `--base` 或 `DIAGRAM_STUDIO_BASE`，不要改脚本里的常量 |
 | 图能出但 `X-Diagram-Errors > 0` | 画法不规范；跑 `check` 拿到代码，再到 `references/dsl-syntax.md` 第 16 节按代码改（如 `DECISION_BRANCHES` 判断框少一条出口、`UNNAMED_DATAFLOW` 数据流没名字、`REALIZATION_TARGET` 实现箭头方向反了） |
 | 图太挤 | 拆图，或 `--orientation landscape` / `--margin 12`；节点 > 34 会自动给 `LARGE_DIAGRAM` 提示 |
 

@@ -1,6 +1,6 @@
 # Diagram Studio Skill
 
-> 让 AI Agent 直接调用 [SE Diagram Studio](https://yougood.ggff.net) 的渲染引擎，把一句自然语言变成符合 GB/T 1526、OMG UML 2.5.1、Chen (1976) 与 Crow's Foot 规范的论文插图。
+> 让 AI Agent 直接调用 SE Diagram Studio 的渲染引擎，把一句自然语言变成符合 GB/T 1526、OMG UML 2.5.1、Chen (1976) 与 Crow's Foot 规范的论文插图。服务地址由 `DIAGRAM_STUDIO_BASE` 指定，技能不绑定任何具体域名。
 
 这是一个 **Agent Skill**（技能包），不是独立软件。装进本地技能目录后，AI 会按包内的 DSL 语法书写伪代码，调用远端 API 出图。
 
@@ -61,7 +61,7 @@ git clone https://github.com/LeastBit/diagram-studio-skill.git \
 
 ## 配置 API Key
 
-技能**不内置任何密钥**，需要你自行提供。前往 [yougood.ggff.net](https://yougood.ggff.net) 注册后在控制台创建 API Key，然后：
+技能**不内置任何密钥**，需要你自行提供。先配置服务地址，再在网页控制台（`<Base URL>/dashboard/keys`）创建 API Key：
 
 ```bash
 export DIAGRAM_STUDIO_API_KEY="sk-你的密钥"
@@ -150,7 +150,7 @@ node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase
 
 ```bash
 # 等价 HTTP 调用
-curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
+curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/usecase/views" \
   -H "Authorization: Bearer $DIAGRAM_STUDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"source": "…同一段 usecase DSL…", "format": "svg"}'
@@ -207,7 +207,7 @@ curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
 不使用 CLI 也可以直接 POST：
 
 ```bash
-curl -X POST https://yougood.ggff.net/api/v1/render/svg \
+curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
   -H "Authorization: Bearer $DIAGRAM_STUDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -223,9 +223,8 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 
 ## 相关链接
 
-- 在线平台：[yougood.ggff.net](https://yougood.ggff.net)
-- API 文档：[yougood.ggff.net/api-docs](https://yougood.ggff.net/api-docs)
-- 完整论文示例：[yougood.ggff.net/examples](https://yougood.ggff.net/examples)
+- 在线平台 / API 文档 / 论文示例：均为 `<Base URL>`、`<Base URL>/api-docs`、`<Base URL>/examples`
+- 服务自检：`node scripts/ds.mjs doctor`
 
 ---
 
