@@ -17,7 +17,6 @@
 | 规范自检 | 响应头 `X-Diagram-Errors` 返回规范问题条数，可先校验后出图 |
 | 批量渲染 | 单次请求最多 10 张 |
 | **SQL 体检** | 本地分析建表脚本，找出引擎推断不到的业务联系（审核人、发布者、多对多中介表），生成概念 E-R DSL 骨架 |
-| **Visio 兼容** | SVG 带 `<?xml encoding="UTF-8"?>`、导出补 UTF-8 BOM、每个 `<text>` 自带 `font-family`；导入 Visio / Word 中文不乱码，箭头不丢失 |
 | **用例图按角色拆图** | 用例图的**默认**出图方式：一段用例 DSL → 每个参与者一张独立用例图（张数 = 角色数），加 `--with-overview` 再附 1 张全角色总览；公共用例自动带出，孤立用例单独提示 |
 | 零依赖 CLI | `scripts/ds.mjs` + `scripts/sql-audit.mjs` 只用 Node.js 内置模块，无需 `npm install` |
 

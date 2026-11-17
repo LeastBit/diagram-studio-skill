@@ -144,8 +144,7 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 - 服务端只做 2 小时留存（普通账号），**产物必须落到本地**。
 - 用户要「一套图」时，先给图清单（图名 + kind），确认后再批量生成，避免一次烧掉几十积分。
 - **用例图按角色分文件交付**：`figures/usecase/01-老人-家属用例视图.svg`、`02-…`，回复里写明确切张数「共 4 张：3 个角色各 1 张 + 全角色总览 1 张」，不要用「几张」糊过去。拆图后同一用例（如「身份登录」）在多个文件里重复出现是正常的。
-- **SVG 可直接导入 Visio / Word / PowerPoint / Illustrator**：文件里每行（竖排时每字）都是独立 `<text>` 且自带 `x`/`y`，不用 `<tspan>` 承担定位，`font-size` 带 `px` 单位，字体族只写两级 `SimSun, serif`。这是为兼容 Office 系解析器专门做的——Visio 会丢弃 `<tspan>` 上的坐标，把多行文字堆到起点（表现为"文字挤成一团"）。**箭头与基数符号也不用 `<marker>`**：早先用 `marker-end` 时 Word/Visio/resvg 会把箭头整片丢掉，现在按末端线段方向逐条画成真实 `<path>`（实心三角 / 开放箭头 / 空心三角 / 乌鸦脚 / 单竖杠），导入后方向不会消失。
-- **中文乱码的三道保险**：① 文件头带 `<?xml version="1.0" encoding="UTF-8"?>`（缺声明时 Visio 按系统代码页＝GBK 解码 UTF-8，中文变成「锟斤拷」）；② `ds.mjs` 落盘与网页下载都会补 UTF-8 BOM（Visio 判定编码优先级最高的是 BOM）；③ 每个 `<text>` 自带 `font-family`，不依赖 `<g>` 继承——Visio 取不到就回退拉丁字体，中文变方块。三者缺一，导入 Office 系工具都可能翻车。
+- **SVG 可直接导入 Word / PowerPoint / Illustrator**：文件里每行（竖排时每字）都是独立 `<text>` 且自带 `x`/`y`，不用 `<tspan>` 承担定位，`font-size` 带 `px` 单位，字体族只写两级 `SimSun, serif`。这是为兼容 Office 系解析器专门做的——它们会丢弃 `<tspan>` 上的坐标，把多行文字堆到起点（表现为「文字挤成一团」）。**箭头与基数符号也不用 `<marker>`**：早先用 `marker-end` 时部分解析器会把箭头整片丢掉，现在按末端线段方向逐条画成真实 `<path>`（实心三角 / 开放箭头 / 空心三角 / 乌鸦脚 / 单竖杠），导入后方向不会消失。
 
 ## 6. 四个落地示例
 
@@ -246,7 +245,6 @@ node scripts/ds.mjs ucv --file usecase.dsl --outdir figures/usecase --with-overv
 | `429` | 并发 50/500 或网关 120 次/分；退避 5–10 秒，或改 batch |
 | 图能出但 `X-Diagram-Errors > 0` | 画法不规范；跑 `check` 拿到代码，再到 `references/dsl-syntax.md` 第 16 节按代码改（如 `DECISION_BRANCHES` 判断框少一条出口、`UNNAMED_DATAFLOW` 数据流没名字、`REALIZATION_TARGET` 实现箭头方向反了） |
 | 图太挤 | 拆图，或 `--orientation landscape` / `--margin 12`；节点 > 34 会自动给 `LARGE_DIAGRAM` 提示 |
-| 导入 Visio 后中文变乱码 / 方块 | 先看文件头有没有 `<?xml version="1.0" encoding="UTF-8"?>`；用 `ds.mjs` 或网页下载按钮导出（会补 UTF-8 BOM），别用记事本另存为 ANSI；再看系统是否装了中文字体（缺字体会显示方块而非乱码） |
 
 ## 8. 参考文件
 

@@ -93,8 +93,8 @@ function pageFromArgs() {
 
 /**
  * 写 SVG 文件时补 UTF-8 BOM。
- * Visio / CorelDRAW 判定编码的顺序是「BOM → XML 声明 → 系统代码页」，
- * 简体中文 Windows 下少了 BOM 可能按 GBK 解码 UTF-8，中文全成「锟斤拷」。
+ * 部分 Office 类工具判定编码的顺序是「BOM → XML 声明 → 系统代码页」，
+ * 简体中文 Windows 下少了 BOM 可能按 GBK 解码 UTF-8，中文全成乱码。
  * 浏览器与 resvg 都能正确跳过 BOM，加了不影响任何下游。
  */
 function writeSvg(file, svg) {
