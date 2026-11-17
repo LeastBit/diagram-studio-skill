@@ -140,6 +140,38 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 
 ---
 
+## 5.1 用例视图接口（按角色拆图）
+
+### POST /api/v1/usecase/views
+
+输入一段用例图 DSL，**按参与者拆成多张独立用例图**：一张图只画一个角色、他直接关联的用例，
+以及沿 include/extend 单向带出的公共用例。角色多于两个时优先用它 —— 一张图塞五个角色，
+参与者会互相压住、关联线横穿整张图。
+
+| 字段 | 取值 | 说明 |
+| --- | --- | --- |
+| `source` | string | 用例图 DSL（`actor` / `usecase` / `->` / `..>`），≤ 20,000 字符 |
+| `format` | `json` \| `svg` \| `png` | 默认 `json`（每张图都带 `svg`） |
+| `dpi` | `300` \| `600` | PNG 生效 |
+
+**响应（json）**：
+
+| 字段 | 含义 |
+| --- | --- |
+| `views[]` | 每个参与者一条：`id / actorId / actorLabel / title / usecases[] / page / issues / model / svg` |
+| `overview` | 全部角色画在一张图上的对照图 |
+| `shared[]` | 被多个角色共用、会在多张图里重复出现的用例（`{ id, label, actors[] }`） |
+| `orphans[]` | 既无角色使用、也未被 include/extend 引用的用例 —— 通常意味着模型漏了关联 |
+| `layoutHint` | 拆图说明与待核实项 |
+| `rules` | 拆图原则与记法规范 |
+
+`usecases[]` 里每条带 `role`：`primary`（该角色直接使用）或 `linked`（由 include/extend 带入）。
+
+> 与 `/er/views` 一样，该接口不走 API Key 计费（网页端也用），仍受网关限流。
+> 拆分在服务端完成，DSL 不需要改；`render --kind usecase` 仍输出「一张图」的版本。
+
+---
+
 ## 6. 图型清单
 
 | kind | 名称 | 标准 |

@@ -101,6 +101,29 @@ Renew ..> Borrow: extend
 
 `Manage`（维护馆藏）要先声明：`usecase 维护馆藏 as Manage`，否则报未声明。
 
+### 2.1 角色多于两个时：按角色拆图，别塞成一张
+
+一张图放三个以上参与者，参与者会挤在两侧互相压住，关联线从别的用例椭圆上横穿过去，
+`«include»` 标签也会叠成一团。**规范做法是每个参与者一张图**，每张图只画他直接关联的用例，
+再沿 include/extend 把公共用例带进来（`身份登录` 这类用例在多张图里重复出现是正常的）：
+
+```bash
+node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase   # 每个角色一张
+node scripts/ds.mjs ucv --file system.dsl --with-overview            # 额外给一张全角色总览
+```
+
+```bash
+curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
+  -H "Content-Type: application/json" \
+  -d '{"source": "…同一段 usecase DSL…", "format": "svg"}'
+```
+
+返回 `views[]`（每个角色一条，含 `svg`）、`overview`（全角色总览）、`shared`（被多个角色共用、
+会重复出现的用例）、`orphans`（既无角色使用、也未被 include/extend 引用的用例——通常意味着漏了关联）。
+
+拆分是**服务端按模型做的**，DSL 不用改；`render --kind usecase` 仍然画「一张图」的版本，
+适合角色不超过两个的场景。
+
 ---
 
 ## 3. functional · 功能结构图

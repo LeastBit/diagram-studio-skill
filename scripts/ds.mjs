@@ -8,6 +8,7 @@
  *   node ds.mjs check  --kind flowchart --file a.dsl   只做规范校验，不落地文件
  *   node ds.mjs batch  --manifest list.json --outdir out
  *   node ds.mjs er     --file schema.sql --outdir er
+ *   node ds.mjs ucv    --file usecase.dsl --outdir out/usecase   按角色拆成多张用例图
  *
  * 通用参数：--base https://yougood.ggff.net / --key sk-xxx
  * 也可用环境变量 DIAGRAM_STUDIO_BASE / DIAGRAM_STUDIO_API_KEY。
@@ -206,7 +207,7 @@ async function cmdBatch() {
 }
 
 async function cmdEr() {
-  preflight();
+  // /er/views 不校验 API Key（网页 studio 也用它），不做 Key 预检，避免一条误导性提示。
   const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
   if (!source.trim()) die("缺少 --file（概念 E-R DSL 或 CREATE TABLE 语句）。");
   const format = args.format === "png" ? "png" : "svg";
@@ -236,6 +237,35 @@ async function cmdEr() {
   for (const item of data.conflicts) console.log(`  · ${item.message ?? JSON.stringify(item)}`);
 }
 
+async function cmdUsecase() {
+  // /usecase/views 同样不校验 API Key，不做 Key 预检。
+  const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
+  if (!source.trim()) die("缺少 --file（用例图 DSL）。");
+  const format = args.format === "png" ? "png" : "svg";
+  const response = await postJson(`${base}/api/v1/usecase/views`, { source, format, dpi: Number(args.dpi === "600" ? 600 : 300) });
+  if (!response.ok) die(await describeError(response));
+  const data = await response.json();
+
+  const outdir = typeof args.outdir === "string" ? args.outdir : "out/usecase";
+  fs.mkdirSync(outdir, { recursive: true });
+  const safe = (value) => String(value ?? "").replace(/[\\/:*?"<>|：]/g, "-").slice(0, 40);
+  const write = (view, name) => {
+    if (!view) return;
+    const file = path.join(outdir, `${name}.${format}`);
+    if (format === "svg") fs.writeFileSync(file, view.svg);
+    else fs.writeFileSync(file, Buffer.from(view.pngBase64, "base64"));
+    console.log(`  ✓ ${name} → ${file}（用例 ${view.usecases.length}）`);
+  };
+
+  console.log(`${data.title} · 角色 ${data.actorCount} · 出图 ${data.viewCount}`);
+  data.views.forEach((view, index) => write(view, `${String(index + 1).padStart(2, "0")}-${safe(view.actorLabel)}用例视图`));
+  if (args["with-overview"] === true) write(data.overview, "总览-全角色用例图");
+  for (const item of data.shared ?? []) console.log(`  · 共用用例「${item.label}」出现在 ${item.actors.join("、")} 的图里`);
+  for (const item of data.orphans ?? []) console.log(`  · 未关联用例「${item.label}」：没有角色使用它，也没有被 include/extend 引用`);
+  if (data.layoutHint) console.log(`  ${data.layoutHint}`);
+  if (!(data.viewCount > 0)) process.exitCode = 1;
+}
+
 const usage = `SE Diagram Studio CLI
 
   node ds.mjs kinds
@@ -245,6 +275,7 @@ const usage = `SE Diagram Studio CLI
   node ds.mjs check  --kind <kind> --file <dsl>
   node ds.mjs batch  --manifest list.json [--outdir out] [--format png]
   node ds.mjs er     --file schema.sql [--outdir out/er]
+  node ds.mjs ucv    --file usecase.dsl [--outdir out/usecase] [--format png] [--with-overview]
 
   环境变量：DIAGRAM_STUDIO_BASE（默认 ${BASE}）· DIAGRAM_STUDIO_API_KEY`;
 
@@ -255,6 +286,7 @@ try {
   else if (cmd === "check") await cmdCheck();
   else if (cmd === "batch") await cmdBatch();
   else if (cmd === "er") await cmdEr();
+  else if (cmd === "ucv" || cmd === "usecase") await cmdUsecase();
   else console.log(usage);
 } catch (error) {
   die(error instanceof Error ? error.message : String(error));

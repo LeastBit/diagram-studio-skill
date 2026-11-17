@@ -17,6 +17,7 @@
 | 规范自检 | 响应头 `X-Diagram-Errors` 返回规范问题条数，可先校验后出图 |
 | 批量渲染 | 单次请求最多 10 张 |
 | **SQL 体检** | 本地分析建表脚本，找出引擎推断不到的业务联系（审核人、发布者、多对多中介表），生成概念 E-R DSL 骨架 |
+| **用例图按角色拆图** | 一段用例 DSL → 每个参与者一张独立用例图，另附全角色总览；公共用例自动带出，孤立用例单独提示 |
 | 零依赖 CLI | `scripts/ds.mjs` + `scripts/sql-audit.mjs` 只用 Node.js 内置模块，无需 `npm install` |
 
 ---
@@ -95,6 +96,9 @@ node scripts/ds.mjs render --kind usecase --file uc.dsl \
 
 # 只做规范校验，不出图（查看错误码）
 node scripts/ds.mjs check --kind flowchart --file fc.dsl
+
+# 用例图按角色拆成多张（每个参与者一张 + 全角色总览）
+node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase --with-overview
 ```
 
 `check` 走批量接口的 JSON 模式，返回每条违规的 `code`、`message` 与 `rule`，便于模型自行修正后重试。
@@ -130,6 +134,39 @@ node scripts/ds.mjs er --file er/model.dsl --outdir figures/er
 实测一个真实的宠物领养毕设库（14 张表、0 条外键）：能画出 10 条联系，另找出 5 条高优先级问题——两张审核表都缺审核人字段、认领表里用了领养表的前缀、一个 `yonghu_id` 同时充当申请人和审核人。
 
 方法论、八种典型病症的前后对照、改库还是只画图的决策树见 [`references/sql-to-erd.md`](references/sql-to-erd.md)。
+
+---
+
+## 用例图按角色拆图
+
+一张用例图塞四五个角色，是论文里最常见的「看不清」来源：参与者挤在边界两侧互相压住，
+关联线从别的用例椭圆上横穿过去，`«include»` 标签叠成一团。UML 并不要求把系统画在一张图上，
+**按角色拆成一组视图反而更规范**。
+
+```bash
+# 照常写一张完整的用例 DSL
+node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase
+```
+
+```bash
+# 等价 HTTP 调用
+curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
+  -H "Authorization: Bearer $DIAGRAM_STUDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source": "…同一段 usecase DSL…", "format": "svg"}'
+```
+
+拆分在服务端按模型完成，DSL 不用改：
+
+| 输出 | 含义 |
+|---|---|
+| `views[]` | 每个参与者一张图，只含他直接关联的用例 + 沿 include/extend 单向带出的公共用例 |
+| `overview` | 全角色画在一张图上的对照图 |
+| `shared[]` | 被多个角色共用、会在多张图里重复出现的用例 |
+| `orphans[]` | 既无角色使用、也未被 include/extend 引用的用例 —— 通常是漏了关联 |
+
+`usecases[]` 里每条带 `role`：`primary`（直接使用）或 `linked`（由 include/extend 带入）。
+`render --kind usecase` 仍输出「一张图」的版本，角色不超过两个时够用。
 
 ---
 
