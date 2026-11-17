@@ -69,7 +69,7 @@ node scripts/ds.mjs check --kind sequence --file pay.dsl
 | kind | 图型 | 关键声明词 | 典型场景 |
 | --- | --- | --- | --- |
 | `flowchart` | 程序流程图 | `start/end/input/process/decision` | 算法、业务步骤 |
-| `usecase` | UML 用例图 | `actor` / `usecase`（边界自动生成） | 参与者与功能；角色 > 2 用 `ucv` 拆图 |
+| `usecase` | UML 用例图 | `actor` / `usecase`（边界自动生成） | 参与者与功能；**默认用 `ucv` 按角色拆图**（张数 = 角色数，+1 张总览） |
 | `functional` | 功能结构图 | 纯缩进（**无 title、无连线**） | 功能模块分解 |
 | `sequence` | UML 时序图 | `participant/actor/database` + `->` | 接口调用顺序 |
 | `class` | UML 类图 | `class{...}` / `interface{...}` | 领域模型 |
