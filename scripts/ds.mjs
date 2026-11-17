@@ -91,6 +91,17 @@ function pageFromArgs() {
   return Object.keys(page).length ? page : undefined;
 }
 
+/**
+ * 写 SVG 文件时补 UTF-8 BOM。
+ * Visio / CorelDRAW 判定编码的顺序是「BOM → XML 声明 → 系统代码页」，
+ * 简体中文 Windows 下少了 BOM 可能按 GBK 解码 UTF-8，中文全成「锟斤拷」。
+ * 浏览器与 resvg 都能正确跳过 BOM，加了不影响任何下游。
+ */
+function writeSvg(file, svg) {
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fs.writeFileSync(file, `\uFEFF${svg}`);
+}
+
 async function postJson(url, body) {
   const response = await fetch(url, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
   return response;
@@ -150,8 +161,11 @@ async function cmdRender() {
   const out = typeof args.out === "string"
     ? args.out
     : path.join("out", `${kind}-${Date.now()}.${format}`);
-  fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
-  fs.writeFileSync(out, buffer);
+  if (format === "svg") writeSvg(out, buffer.toString("utf8"));
+  else {
+    fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+    fs.writeFileSync(out, buffer);
+  }
 
   const issues = response.headers.get("x-diagram-errors") ?? "0";
   console.log(`✓ ${kind} → ${out}  ${(buffer.length / 1024).toFixed(1)}KB`);
@@ -197,7 +211,7 @@ async function cmdBatch() {
   for (const item of data.results) {
     if (!item.ok) { console.log(`  ✗ #${item.index} ${item.kind}: ${item.message}`); continue; }
     const name = path.join(outdir, `${String(item.index).padStart(2, "0")}-${item.kind}.${format}`);
-    if (format === "svg") fs.writeFileSync(name, item.svg);
+    if (format === "svg") writeSvg(name, item.svg);
     else fs.writeFileSync(name, Buffer.from(item.base64, "base64"));
     const errors = (item.issues ?? []).filter((entry) => entry.severity === "error").length;
     console.log(`  ✓ #${item.index} ${item.kind} → ${name}（规范错误 ${errors}）`);
@@ -220,7 +234,7 @@ async function cmdEr() {
   const write = (view, name) => {
     if (!view) return;
     const file = path.join(outdir, `${name}.${format}`);
-    if (format === "svg") fs.writeFileSync(file, view.svg);
+    if (format === "svg") writeSvg(file, view.svg);
     else fs.writeFileSync(file, Buffer.from(view.pngBase64, "base64"));
     console.log(`  ✓ ${name} → ${file}`);
   };
@@ -252,7 +266,7 @@ async function cmdUsecase() {
   const write = (view, name) => {
     if (!view) return;
     const file = path.join(outdir, `${name}.${format}`);
-    if (format === "svg") fs.writeFileSync(file, view.svg);
+    if (format === "svg") writeSvg(file, view.svg);
     else fs.writeFileSync(file, Buffer.from(view.pngBase64, "base64"));
     console.log(`  ✓ ${name} → ${file}（用例 ${view.usecases.length}）`);
   };

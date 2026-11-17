@@ -145,6 +145,7 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 - 用户要「一套图」时，先给图清单（图名 + kind），确认后再批量生成，避免一次烧掉几十积分。
 - **用例图按角色分文件交付**：`figures/usecase/01-老人-家属用例视图.svg`、`02-…`，回复里写明确切张数「共 4 张：3 个角色各 1 张 + 全角色总览 1 张」，不要用「几张」糊过去。拆图后同一用例（如「身份登录」）在多个文件里重复出现是正常的。
 - **SVG 可直接导入 Visio / Word / PowerPoint / Illustrator**：文件里每行（竖排时每字）都是独立 `<text>` 且自带 `x`/`y`，不用 `<tspan>` 承担定位，`font-size` 带 `px` 单位，字体族只写两级 `SimSun, serif`。这是为兼容 Office 系解析器专门做的——Visio 会丢弃 `<tspan>` 上的坐标，把多行文字堆到起点（表现为"文字挤成一团"）。**箭头与基数符号也不用 `<marker>`**：早先用 `marker-end` 时 Word/Visio/resvg 会把箭头整片丢掉，现在按末端线段方向逐条画成真实 `<path>`（实心三角 / 开放箭头 / 空心三角 / 乌鸦脚 / 单竖杠），导入后方向不会消失。
+- **中文乱码的三道保险**：① 文件头带 `<?xml version="1.0" encoding="UTF-8"?>`（缺声明时 Visio 按系统代码页＝GBK 解码 UTF-8，中文变成「锟斤拷」）；② `ds.mjs` 落盘与网页下载都会补 UTF-8 BOM（Visio 判定编码优先级最高的是 BOM）；③ 每个 `<text>` 自带 `font-family`，不依赖 `<g>` 继承——Visio 取不到就回退拉丁字体，中文变方块。三者缺一，导入 Office 系工具都可能翻车。
 
 ## 6. 四个落地示例
 
@@ -243,7 +244,9 @@ node scripts/ds.mjs ucv --file usecase.dsl --outdir figures/usecase --with-overv
 | `401` | Key 是否过期 / 复制不完整；`Authorization: Bearer sk-...` 的空格 |
 | `402` | 账号积分不足（1 积分/张） |
 | `429` | 并发 50/500 或网关 120 次/分；退避 5–10 秒，或改 batch |
-| 图能出但 `X-Diagram-Errors > 0` | 画法不规范；跑 `check` 拿到代码，再到 `references/dsl-syntax.md` 第 16 节按代码改（如 `DECISION_BRANCHES` 判断框少一条出口、`UNNAMED_DATAFLOW` 数据流没名字、`REALIZATION_TARGET` 实现箭头方向反了） || 图太挤 | 拆图，或 `--orientation landscape` / `--margin 12`；节点 > 34 会自动给 `LARGE_DIAGRAM` 提示 |
+| 图能出但 `X-Diagram-Errors > 0` | 画法不规范；跑 `check` 拿到代码，再到 `references/dsl-syntax.md` 第 16 节按代码改（如 `DECISION_BRANCHES` 判断框少一条出口、`UNNAMED_DATAFLOW` 数据流没名字、`REALIZATION_TARGET` 实现箭头方向反了） |
+| 图太挤 | 拆图，或 `--orientation landscape` / `--margin 12`；节点 > 34 会自动给 `LARGE_DIAGRAM` 提示 |
+| 导入 Visio 后中文变乱码 / 方块 | 先看文件头有没有 `<?xml version="1.0" encoding="UTF-8"?>`；用 `ds.mjs` 或网页下载按钮导出（会补 UTF-8 BOM），别用记事本另存为 ANSI；再看系统是否装了中文字体（缺字体会显示方块而非乱码） |
 
 ## 8. 参考文件
 
@@ -254,3 +257,15 @@ node scripts/ds.mjs ucv --file usecase.dsl --outdir figures/usecase --with-overv
 | `references/api-reference.md` | 端点、请求体、`page` 排版参数、计费与限流、错误码、留存策略 |
 | `scripts/ds.mjs` | 零依赖 CLI：`kinds` / `syntax` / `render` / `check` / `batch` / `er` / `ucv` |
 | `scripts/sql-audit.mjs` | 本地 SQL 体检（不联网、不扣积分）：找引擎推断不到的关系、生成概念 DSL 骨架 |
+
+
+## ZhiRen 当前用例图规则
+
+默认只保存各角色图，不保存全角色合并总览；3个真实角色生成3张，4个角色生成4张。每张图只包含一个参与者及该角色实际使用的用例，共享用例可在相关角色图中分别出现。角色名与需求及源码一致，保留真实职责和include/extend联系，不用删角色、删功能凑数量，也不因同一角色出现在不同业务小图而重复出图。角色图数量必须等于实际角色数。只有用户明确另要总览时才选择with-overview。
+
+
+### 本轮论文交付规则
+
+- 总E-R图严格限制为一至两张，只表达经过SQL及源码核对的主要业务关系；不把次要关系逐条拆成补充关系图。完整SQL与关系核对记录另行保存，不混入论文主体。随后展示主要业务实体分E-R图，属性全部连接其所属实体。
+- 每个真实角色单独一张用例图，默认不提供角色总览；每角色最多十个主要用例，功能名用二至八字，按真实权限关联。
+- 系统使用受控API适配器调用本技能相同的绘图接口，保留技能版本、技能内容摘要、脚本与接口文档摘要、DSL与供应商绘图记录，最终核对论文下载包。
