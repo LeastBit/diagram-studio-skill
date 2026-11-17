@@ -8,7 +8,7 @@
  *   node ds.mjs check  --kind flowchart --file a.dsl   只做规范校验，不落地文件
  *   node ds.mjs batch  --manifest list.json --outdir out
  *   node ds.mjs er     --file schema.sql --outdir er
- *   node ds.mjs ucv    --file usecase.dsl --outdir out/usecase   按角色拆成多张用例图
+ *   node ds.mjs ucv    --file usecase.dsl --outdir out/usecase   按角色拆成多张用例图（每角色 1 张）
  *
  * 通用参数：--base https://yougood.ggff.net / --key sk-xxx
  * 也可用环境变量 DIAGRAM_STUDIO_BASE / DIAGRAM_STUDIO_API_KEY。
@@ -257,9 +257,11 @@ async function cmdUsecase() {
     console.log(`  ✓ ${name} → ${file}（用例 ${view.usecases.length}）`);
   };
 
-  console.log(`${data.title} · 角色 ${data.actorCount} · 出图 ${data.viewCount}`);
+  console.log(`${data.title} · 参与者 ${data.actorCount} · 角色图 ${data.views.length} 张${args["with-overview"] === true ? " + 总览 1 张" : ""} = 共 ${data.views.length + (args["with-overview"] === true ? 1 : 0)} 张`);
   data.views.forEach((view, index) => write(view, `${String(index + 1).padStart(2, "0")}-${safe(view.actorLabel)}用例视图`));
   if (args["with-overview"] === true) write(data.overview, "总览-全角色用例图");
+  const idle = Math.max(0, data.actorCount - data.views.length);
+  if (idle) console.log(`  · ${idle} 个参与者没有任何「角色 -> 用例」关联，未单独出图`);
   for (const item of data.shared ?? []) console.log(`  · 共用用例「${item.label}」出现在 ${item.actors.join("、")} 的图里`);
   for (const item of data.orphans ?? []) console.log(`  · 未关联用例「${item.label}」：没有角色使用它，也没有被 include/extend 引用`);
   if (data.layoutHint) console.log(`  ${data.layoutHint}`);
@@ -276,6 +278,7 @@ const usage = `SE Diagram Studio CLI
   node ds.mjs batch  --manifest list.json [--outdir out] [--format png]
   node ds.mjs er     --file schema.sql [--outdir out/er]
   node ds.mjs ucv    --file usecase.dsl [--outdir out/usecase] [--format png] [--with-overview]
+                     # 用例图默认走这个：每个参与者 1 张，加 --with-overview 再多 1 张总览
 
   环境变量：DIAGRAM_STUDIO_BASE（默认 ${BASE}）· DIAGRAM_STUDIO_API_KEY`;
 

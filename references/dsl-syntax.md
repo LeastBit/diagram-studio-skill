@@ -70,7 +70,7 @@ A -> E
 
 ## 2. usecase · UML 用例图
 
-标准：OMG UML 2.5.1 §18。系统边界框自动生成，标题即边界名。
+标准：OMG UML 2.5.1 §18。系统边界框自动生成，标题即边界名。**默认按角色拆成多张出图，见 2.1。**
 
 ```
 title: <系统名>                                 # 同时作为系统边界名称
@@ -101,11 +101,9 @@ Renew ..> Borrow: extend
 
 `Manage`（维护馆藏）要先声明：`usecase 维护馆藏 as Manage`，否则报未声明。
 
-### 2.1 角色多于两个时：按角色拆图，别塞成一张
+### 2.1 默认按角色拆图（推荐做法，不画合并图）
 
-一张图放三个以上参与者，参与者会挤在两侧互相压住，关联线从别的用例椭圆上横穿过去，
-`«include»` 标签也会叠成一团。**规范做法是每个参与者一张图**，每张图只画他直接关联的用例，
-再沿 include/extend 把公共用例带进来（`身份登录` 这类用例在多张图里重复出现是正常的）：
+**只要写用例图，就默认拆图**：一张图放三个以上参与者，参与者会挤在两侧互相压住，关联线从别的用例椭圆上横穿过去，`«include»` 标签也会叠成一团。按参与者拆成一组视图是 UML 认可的规范表达——每张图只画该角色直接关联的用例，再沿 include/extend 把公共用例（如 `身份登录`）带进来。
 
 ```bash
 node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase   # 每个角色一张
@@ -118,11 +116,18 @@ curl -X POST https://yougood.ggff.net/api/v1/usecase/views \
   -d '{"source": "…同一段 usecase DSL…", "format": "svg"}'
 ```
 
-返回 `views[]`（每个角色一条，含 `svg`）、`overview`（全角色总览）、`shared`（被多个角色共用、
-会重复出现的用例）、`orphans`（既无角色使用、也未被 include/extend 引用的用例——通常意味着漏了关联）。
+**返回张数（先算好再交付）**
 
-拆分是**服务端按模型做的**，DSL 不用改；`render --kind usecase` 仍然画「一张图」的版本，
-适合角色不超过两个的场景。
+| 项 | 张数 | 说明 |
+| --- | --- | --- |
+| `views[]` | **= 有「角色 → 用例」关联的参与者数** | 每个参与者 1 张 |
+| `overview` | 0 或 1 | 仅 `--with-overview`（或直接读 json 的 `overview`）时落地 |
+| 合计 | 角色数（+1） | 3 个角色 + 总览 = **4 张**；5 个角色不加总览 = **5 张** |
+
+- 只声明 `actor`、没写任何 `角色 -> 用例` 的角色**不出图**，只在 `layoutHint` 里提示；数张数时把它排除。
+- 每张角色图的用例 = 直接关联（`role: "primary"`）+ include/extend 单向带出的公共用例（`role: "linked"`），所以张数按**角色数**算，不按用例数算。
+- 返回字段：`actorCount`（参与者总数）、`viewCount`（角色图张数）、`views[]`（含 `svg`，`format=png` 时含 `pngBase64`）、`overview`、`shared[]`（多角色共用、会重复出现）、`orphans[]`（既无角色使用、也未被 include/extend 引用的用例）。
+- 拆分是**服务端按模型做的**，DSL 不用改；`render --kind usecase` 仍画合并图，适合角色 ≤ 2 的简单场景。
 
 ---
 

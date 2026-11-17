@@ -1,6 +1,6 @@
 ---
 name: diagram-studio
-description: 使用 SE Diagram Studio 生成论文流程图、用例图、时序图、模块图、架构图、概念E-R图及数据库ERD等13类技术插图。适用于自然语言设计说明或真实SQL，先核实实体、属性和关系，再渲染SVG/PNG并检查可读性；复杂业务拆分小图，用例图按角色拆成多张，属性须连接所属实体。含DSL、API及排错指导，不内置密钥。
+description: 使用 SE Diagram Studio 生成论文流程图、用例图、时序图、模块图、架构图、概念E-R图及数据库ERD等13类技术插图。适用于自然语言设计说明或真实SQL，先核实实体、属性和关系，再渲染SVG/PNG并检查可读性；复杂业务拆分小图，用例图默认按角色拆成多张（张数=角色数+可选总览1张），属性须连接所属实体。含DSL、API及排错指导，不内置密钥。
 metadata:
   agent_created: true
 ---
@@ -26,7 +26,7 @@ export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
 
 ## 1. 工作流（按顺序，不要跳）
 
-1. **判断图型**：读 `references/dsl-syntax.md` 第 14 节「自然语言 → 图型选择」对照表。拿不准时按用户用词选：说「流程/步骤」→ `flowchart`，说「谁能做什么」→ `usecase`（角色超过两个就按角色拆图，见第 5 步），说「消息先后」→ `sequence`，说「表结构」→ `erd`，说「分几层」→ `architecture`。
+1. **判断图型**：读 `references/dsl-syntax.md` 第 14 节「自然语言 → 图型选择」对照表。拿不准时按用户用词选：说「流程/步骤」→ `flowchart`，说「谁能做什么」→ `usecase`，说「消息先后」→ `sequence`，说「表结构」→ `erd`，说「分几层」→ `architecture`。**`usecase` 一律优先走按角色拆图（`ucv`）**，见第 5 步。
 2. **输入是现成 SQL？先体检，别直接丢给接口**：
    ```bash
    node scripts/sql-audit.mjs --file schema.sql                              # 报告
@@ -36,10 +36,12 @@ export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
 3. **取语法**：`node scripts/ds.mjs syntax <kind>`，或读 `references/dsl-syntax.md` 对应章节。**不要凭记忆写 DSL** —— 13 种图型的声明关键字各不相同，写错一个词就 400。
 4. **写 DSL**：先列实体（参与者/类/表/节点），再列关系。别名用英文，中文放显示位置。
 5. **出图**：`render`（SVG 默认，论文用）/ `--format png --dpi 600`（投稿要求位图时）。`X-Diagram-Errors=0` 只说明语法和规范检查通过，仍须检查实际图片的连线、文字、重叠和论文尺寸下的可读性；**大于 0 时**再跑 `check` 看 issues 明细（`check` 走 batch 接口，同样按张计费 1 积分，不要无条件先跑一遍）。
-   用例图如果角色超过两个，第 5 步的 `render --kind usecase` 换成按角色拆图，一次拿到 N 张：
+   **`usecase` 默认用 `ucv` 按角色拆图，不要用 `render --kind usecase` 画合并图**：
    ```bash
-   node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase
+   node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase              # 只出角色图
+   node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase --with-overview  # 另加一张全角色总览
    ```
+   **张数规则（先算好再交付，别少给也别多给）**：角色图 = `actorCount` 张（每个声明了关联用例的参与者各 1 张）；加 `--with-overview` 再多 1 张总览。所以 `3 个角色 + --with-overview` = **4 张**，`5 个角色` 不加总览 = **5 张**。命令行会在第一行打印 `共 N 张（角色 M × 1 + 总览 1）`，与文件数一一对应。详见第 2 节「用例图默认按角色拆」。
 6. **交付**：给图 + `.dsl` 源文件 + 「图型 / 图题 / 生成命令」三行摘要。
 
 ```bash
@@ -82,6 +84,30 @@ node scripts/ds.mjs check --kind sequence --file pay.dsl
 
 详细语法、完整示例、每种图型的专属坑：`references/dsl-syntax.md`。
 
+### 用例图默认按角色拆（推荐，替代单张合并图）
+
+**只要图型是 `usecase`，默认就按参与者拆成多张**，不写「一张图放所有角色」。理由不是审美：`layoutUseCase` 把参与者摆在系统边界两侧，角色一多就互相压住，关联线横穿整张图，`«include»` 标签叠成一团。
+
+```bash
+# 默认：每个角色一张
+node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase
+# 需要一张全角色对照图时再加
+node scripts/ds.mjs ucv --file uc.dsl --outdir figures/usecase --with-overview
+```
+
+**会返回多少张？** 先按 DSL 数一遍再动手，交付时也要说清楚：
+
+| 项 | 张数 | 说明 |
+| --- | --- | --- |
+| 角色图 `views[]` | **= 有「角色 → 用例」关联的参与者数** | 每个参与者 1 张，文件名 `01-角色名用例视图.svg` |
+| 总览 `overview` | 0 或 **1** | 加 `--with-overview` 才落盘；接口的 json 响应里**始终**带 `overview`（不想用它忽略即可） |
+| 合计 | **角色数（+1）** | 例：老人/家属、配送员、管理员 = 3 张；加总览 = 4 张 |
+
+- 声明了 `actor` 但没写任何 `角色 -> 用例` 的角色**不出图**，只在 `layoutHint` 里提示，别把它算进张数。
+- 每张角色图里的用例 = 该角色**直接关联**的（`role: "primary"`）+ 被 include/extend **单向带出**的公共用例（`role: "linked"`）。所以一张图里的用例数通常多于该角色自己声明的条数，这是对的。
+- 拆分完全在服务端按模型做，**DSL 不用改**；同一个 `.dsl` 既能出拆图，也能被 `render --kind usecase` 出合并图（角色 ≤ 2 时合并图也够用）。
+- 接口字段对应关系：`actorCount`（参与者总数）、`viewCount`（角色图张数）、`views[]`（每张含 `svg`，`format=png` 时含 `pngBase64`）、`shared[]`（多角色共用、会在多张图里重复出现的用例）、`orphans[]`（既无角色使用、也未被 include/extend 引用的用例 —— 通常意味着漏了关联，先补模型再出图）。
+
 ## 3. 直接调 API（没有脚本时）
 
 ```bash
@@ -107,7 +133,7 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 3. **`functional` 图不写 `title:`、不写连线**，第一行就是系统名，缩进固定 2 空格。
 4. **标签里不要再出现冒号**，第二个冒号后的内容会被丢弃。
 5. **一次 batch 最多 10 张**，超过要拆批；整站 `/api/` 限流 120 次/分钟/IP。
-6. **用例图按角色拆，不要把四五个角色塞进一张图**：`layoutUseCase` 会把参与者排在边界两侧，角色一多就互相压住、关联线横穿别的用例椭圆。用 `ucv`（`POST /api/v1/usecase/views`）按参与者拆图，每张图只留一个角色；拆图是服务端按模型做的，DSL 不用改。
+6. **`usecase` 默认按角色拆图，不要默认画合并图**：`layoutUseCase` 会把参与者排在边界两侧，角色一多就互相压住、关联线横穿别的用例椭圆。用 `ucv`（`POST /api/v1/usecase/views`）按参与者拆图，每张图只留一个角色；拆图是服务端按模型做的，DSL 不用改。**张数 = 有用例关联的参与者数（+1 张总览，若加 `--with-overview`）**，交付前先数清楚，回复里写明「共 N 张：M 个角色各 1 张 + 总览 1 张」。
 7. **`chen-er` 的 DSL 和 `/er/views` 的概念 DSL 是两套语法**：前者的属性要写成 `attribute 学号 as Sno of Student`（必须带 `of`），后者写成 `entity X as Y { key 学号 }`。`sql-audit.mjs --emit-dsl` 生成的是**后者**，塞给 `render --kind chen-er` 会报「第 3 行：Chen ER 语句格式不正确」。
 
 ## 5. 交付规范
@@ -117,6 +143,7 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 - 每张图旁边保留同名 `.dsl`，并在回复里给出「图型 + 图题 + 命令」三行摘要，方便复现。
 - 服务端只做 2 小时留存（普通账号），**产物必须落到本地**。
 - 用户要「一套图」时，先给图清单（图名 + kind），确认后再批量生成，避免一次烧掉几十积分。
+- **用例图按角色分文件交付**：`figures/usecase/01-老人-家属用例视图.svg`、`02-…`，回复里写明确切张数「共 4 张：3 个角色各 1 张 + 全角色总览 1 张」，不要用「几张」糊过去。拆图后同一用例（如「身份登录」）在多个文件里重复出现是正常的。
 - **SVG 可直接导入 Visio / Word / PowerPoint / Illustrator**：文件里每行（竖排时每字）都是独立 `<text>` 且自带 `x`/`y`，不用 `<tspan>` 承担定位，`font-size` 带 `px` 单位，字体族只写两级 `SimSun, serif`。这是为兼容 Office 系解析器专门做的——Visio 会丢弃 `<tspan>` 上的坐标，把多行文字堆到起点（表现为"文字挤成一团"）。**箭头与基数符号也不用 `<marker>`**：早先用 `marker-end` 时 Word/Visio/resvg 会把箭头整片丢掉，现在按末端线段方向逐条画成真实 `<path>`（实心三角 / 开放箭头 / 空心三角 / 乌鸦脚 / 单竖杠），导入后方向不会消失。
 
 ## 6. 四个落地示例
@@ -205,8 +232,8 @@ UC7 ..> UC9 : include
 node scripts/ds.mjs ucv --file usecase.dsl --outdir figures/usecase --with-overview
 ```
 
-4. 产出 `01-老人-家属用例视图.svg`、`02-配送员用例视图.svg`、`03-管理员用例视图.svg`，外加一张 `总览-全角色用例图.svg`。每张图只有一个角色，`身份登录` 这类公共用例会在多张图里各出现一次——这是对的，每张图都要能独立读懂。
-5. 命令输出会列出 `shared`（公共用例）与 `orphans`（没有任何角色使用、也没被 include/extend 引用的用例）；`orphans` 非空时要回去核对需求，通常是漏了关联。
+4. 产出 **4 张**：`01-老人-家属用例视图.svg`、`02-配送员用例视图.svg`、`03-管理员用例视图.svg`（3 个角色各 1 张），外加 `总览-全角色用例图.svg`。每张角色图只有一个角色，`身份登录` 这类公共用例会在多张图里各出现一次——这是对的，每张图都要能独立读懂。
+5. 命令输出会列出 `shared`（公共用例）与 `orphans`（没有任何角色使用、也没被 include/extend 引用的用例）；`orphans` 非空时要回去核对需求，通常是漏了关联。交付话术示例：「共 4 张：老人/家属、配送员、管理员各 1 张，另附 1 张全角色总览；其中「身份登录」为三个角色共用，故在 3 张图里重复出现。」
 
 ## 7. 排错顺序
 

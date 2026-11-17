@@ -145,8 +145,10 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 ### POST /api/v1/usecase/views
 
 输入一段用例图 DSL，**按参与者拆成多张独立用例图**：一张图只画一个角色、他直接关联的用例，
-以及沿 include/extend 单向带出的公共用例。角色多于两个时优先用它 —— 一张图塞五个角色，
-参与者会互相压住、关联线横穿整张图。
+以及沿 include/extend 单向带出的公共用例。这是用例图的默认出图方式（`render --kind usecase` 的合并图只适合角色 ≤ 2）。
+
+**返回张数**：`views.length` = 有「角色 → 用例」关联的参与者数（每个参与者 1 张）；`overview` 另计 1 张。
+即 `3 个角色` → 3 张；`3 个角色 + 总览` → 4 张。只声明 `actor`、没有任何关联用例的角色不出图，只在 `layoutHint` 里提示。
 
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
@@ -158,17 +160,19 @@ curl -X POST https://yougood.ggff.net/api/v1/render/svg \
 
 | 字段 | 含义 |
 | --- | --- |
+| `actorCount` | 参与者总数 |
+| `viewCount` | 角色图张数（= `views.length`，每个参与者 1 张） |
 | `views[]` | 每个参与者一条：`id / actorId / actorLabel / title / usecases[] / page / issues / model / svg` |
-| `overview` | 全部角色画在一张图上的对照图 |
+| `overview` | 全部角色画在一张图上的对照图（另计 1 张） |
 | `shared[]` | 被多个角色共用、会在多张图里重复出现的用例（`{ id, label, actors[] }`） |
 | `orphans[]` | 既无角色使用、也未被 include/extend 引用的用例 —— 通常意味着模型漏了关联 |
-| `layoutHint` | 拆图说明与待核实项 |
+| `layoutHint` | 拆图说明、未出图角色与待核实项 |
 | `rules` | 拆图原则与记法规范 |
 
 `usecases[]` 里每条带 `role`：`primary`（该角色直接使用）或 `linked`（由 include/extend 带入）。
 
 > 与 `/er/views` 一样，该接口不走 API Key 计费（网页端也用），仍受网关限流。
-> 拆分在服务端完成，DSL 不需要改；`render --kind usecase` 仍输出「一张图」的版本。
+> 拆分在服务端完成，DSL 不需要改。
 
 ---
 
