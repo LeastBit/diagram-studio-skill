@@ -41,7 +41,7 @@ export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
    node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase              # 只出角色图
    node scripts/ds.mjs ucv --file system.dsl --outdir figures/usecase --with-overview  # 另加一张全角色总览
    ```
-   **张数规则（先算好再交付，别少给也别多给）**：角色图 = `actorCount` 张（每个声明了关联用例的参与者各 1 张）；加 `--with-overview` 再多 1 张总览。所以 `3 个角色 + --with-overview` = **4 张**，`5 个角色` 不加总览 = **5 张**。命令行会在第一行打印 `共 N 张（角色 M × 1 + 总览 1）`，与文件数一一对应。详见第 2 节「用例图默认按角色拆」。
+   **张数规则（先算好再交付，别少给也别多给）**：角色图 = `actorCount` 张（每个声明了关联用例的参与者各 1 张）；加 `--with-overview` 再多 1 张总览。所以 `3 个角色 + --with-overview` = **4 张**，`5 个角色` 不加总览 = **5 张**。命令行第一行会打印 `参与者 3 · 角色图 3 张 + 总览 1 张 = 共 4 张`，与落盘文件数一一对应。详见第 2 节「用例图默认按角色拆」。
 6. **交付**：给图 + `.dsl` 源文件 + 「图型 / 图题 / 生成命令」三行摘要。
 
 ```bash
