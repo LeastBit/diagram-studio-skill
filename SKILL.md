@@ -9,13 +9,13 @@ metadata:
 
 把「一段中文需求」变成「一张能直接排进论文的规范插图」。渲染在服务端完成，本技能负责：选对图型 → 写对 DSL 伪代码 → 调用 API → 检查规范错误 → 交付 SVG/PNG。
 
-- **服务地址不写死在技能里**：由使用者用 `DIAGRAM_STUDIO_BASE` 提供（自建服务的域名会变，写死只会在换域名后表现为「连不上」）。
+- **服务地址**：默认 `https://47-251-74-254.sslip.io`（示例部署，用 sslip.io 通配域名，A 记录随服务器 IP 自动解析）。换自己的域名用 `DIAGRAM_STUDIO_BASE` 或 `--base` 覆盖，不要改脚本里的常量。
 - 在线文档：`<服务地址>/api-docs`　能力自述：`GET /api/v1/capabilities`
 
-## 0. 先配好服务地址与 API Key（都不内置）
+## 0. 先配好服务地址与 API Key
 
 ```bash
-export DIAGRAM_STUDIO_BASE='https://你的服务地址'   # 没有它任何命令都只会提示未配置
+export DIAGRAM_STUDIO_BASE='https://你的服务地址'   # 可选：不设则用默认示例部署
 export DIAGRAM_STUDIO_API_KEY='sk-用户自己的key'
 node scripts/ds.mjs doctor        # 自检：地址 → DNS → 健康检查 → 图型数量
 ```

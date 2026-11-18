@@ -20,8 +20,11 @@ import fs from "node:fs";
 import path from "node:path";
 import dns from "node:dns/promises";
 
-/** 由使用者提供；技能不内置任何服务地址。 */
-const DEFAULT_BASE = "";
+/**
+ * 默认指向当前示例部署（sslip.io 的通配域名，A 记录随 IP 解析，无需注册）。
+ * 换成自己的域名只需改这一行，或用 DIAGRAM_STUDIO_BASE / --base 覆盖——不要改各命令里的拼接。
+ */
+const DEFAULT_BASE = "https://47-251-74-254.sslip.io";
 const KEY = process.env.DIAGRAM_STUDIO_API_KEY || "";
 let base = String(process.env.DIAGRAM_STUDIO_BASE || DEFAULT_BASE).replace(/\/+$/, "");
 

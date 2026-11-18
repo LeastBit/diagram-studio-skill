@@ -1,6 +1,6 @@
 # Diagram Studio Skill
 
-> 让 AI Agent 直接调用 SE Diagram Studio 的渲染引擎，把一句自然语言变成符合 GB/T 1526、OMG UML 2.5.1、Chen (1976) 与 Crow's Foot 规范的论文插图。服务地址由 `DIAGRAM_STUDIO_BASE` 指定，技能不绑定任何具体域名。
+> 让 AI Agent 直接调用 SE Diagram Studio 的渲染引擎，把一句自然语言变成符合 GB/T 1526、OMG UML 2.5.1、Chen (1976) 与 Crow's Foot 规范的论文插图。服务地址默认 `https://47-251-74-254.sslip.io`（示例部署），可用 `DIAGRAM_STUDIO_BASE` 覆盖；技能不内置密钥。
 
 这是一个 **Agent Skill**（技能包），不是独立软件。装进本地技能目录后，AI 会按包内的 DSL 语法书写伪代码，调用远端 API 出图。
 
