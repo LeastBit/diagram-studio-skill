@@ -5,7 +5,8 @@
  *   node ds.mjs kinds                                  列出 13 种图型
  *   node ds.mjs syntax <kind>                          打印该图型的 DSL 语法与示例
  *   node ds.mjs render --kind flowchart --file a.dsl --out a.svg
- *   node ds.mjs check  --kind flowchart --file a.dsl   只做规范校验，不落地文件
+ *   node ds.mjs paper  --file flow.dsl [--out flow.svg] [--format svg|png|vsdx]       # 一张流程原图
+  node ds.mjs check  --kind flowchart --file a.dsl   只做规范校验，不落地文件
  *   node ds.mjs batch  --manifest list.json --outdir out
  *   node ds.mjs er     --file schema.sql --outdir er
  *   node ds.mjs ucv    --file usecase.dsl --outdir out/usecase   按角色拆成多张用例图（每角色 1 张）
@@ -118,11 +119,17 @@ function pageFromArgs() {
  * 浏览器与 resvg 都能正确跳过 BOM，加了不影响任何下游。
  */
 function writeSvg(file, svg) {
+  if(!args.outline && cmd!=="batch" && !svg.includes('data-visio-editable="1"'))die("服务未返回可编辑文字 SVG，请检查服务版本。");
   fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   fs.writeFileSync(file, `\uFEFF${svg}`);
 }
 
 async function postJson(url, body) {
+  if(args.outline && args.editable)die("--outline 与 --editable 不能同时使用。");
+  const mode=args.outline ? "outline" : "editable";
+  body=Array.isArray(body.items)
+    ? {...body,items:body.items.map(item=>({...item,svgText:args.outline||args.editable?mode:item.svgText??mode}))}
+    : {...body,svgText:mode};
   const response = await fetch(url, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
   return response;
 }
@@ -162,12 +169,21 @@ async function cmdSyntax() {
   console.log(item.example);
 }
 
+function exportFormat() {
+  const extension = typeof args.out === "string" ? path.extname(args.out).slice(1).toLowerCase() : "";
+  const known = ["svg", "png", "vsdx"];
+  const format = args.format ?? (known.includes(extension) ? extension : "svg");
+  if (!known.includes(format)) die("--format 支持 svg、png、vsdx。");
+  if (known.includes(extension) && extension !== format) die("--out 的扩展名与 --format 不一致。");
+  return format;
+}
+
 async function cmdRender() {
   requireBase();
   preflight();
   const kind = args.kind;
   if (typeof kind !== "string") die("缺少 --kind，可用 node ds.mjs kinds 查看。");
-  const format = args.format === "png" ? "png" : "svg";
+  const format = exportFormat();
   const source = readSource();
   if (!source.trim()) die("DSL 内容为空。");
 
@@ -193,6 +209,37 @@ async function cmdRender() {
   const issues = response.headers.get("x-diagram-errors") ?? "0";
   console.log(`✓ ${kind} → ${out}  ${(buffer.length / 1024).toFixed(1)}KB`);
   console.log(`  规范错误数：${issues}${issues === "0" ? "（符合标准画法）" : "（建议跑 node ds.mjs check 看具体条目）"}`);
+}
+
+async function cmdPaperFlow() {
+  requireBase();
+  preflight();
+  const source = readSource();
+  const format = exportFormat();
+  const parent = typeof args.outdir === "string" ? args.outdir : "out";
+  const name = typeof args.file === "string" ? path.parse(args.file).name : "flowchart";
+  const out = typeof args.out === "string" ? args.out : path.join(parent, name + "." + format);
+  const body = { source, page: pageFromArgs(), format };
+  const response = format === "png"
+    ? await postJson(`${base}/api/v1/render/png`, { ...body, kind: "flowchart", dpi: Number(args.dpi ?? 300) })
+    : await postJson(`${base}/api/v1/flowchart/views`, body);
+  if (!response.ok) die(await describeError(response));
+  if (format === "png") {
+    if (Number(response.headers.get("x-diagram-errors") ?? 0)) die("流程存在规范错误，请检查输入后重新生成。");
+    fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+    fs.writeFileSync(out, Buffer.from(await response.arrayBuffer()));
+  } else {
+    const { figures, issues } = await response.json();
+    if (figures?.length !== 1 || !figures[0].svg) die("服务未返回一张完整流程图，请核对版本。");
+    for (const issue of issues ?? []) console.error(`${issue.code} · ${issue.message}`);
+    if (issues?.some(i => i.severity === "error")) die("请修正流程后再交付。");
+    if (format === "vsdx") {
+      if (!figures[0].vsdxBase64) die("服务未返回 Visio 文件。");
+      fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+      fs.writeFileSync(out, Buffer.from(figures[0].vsdxBase64, "base64"));
+    } else writeSvg(out, figures[0].svg);
+  }
+  console.log(`✓ ${out}`);
 }
 
 async function cmdCheck() {
@@ -225,7 +272,7 @@ async function cmdBatch() {
   if (!Array.isArray(items) || !items.length) die("manifest 需要是数组或 { items: [...] }。");
   if (items.length > 10) die("单次 batch 最多 10 张，请拆成多次。");
 
-  const format = args.format === "png" ? "png" : "svg";
+  const format = exportFormat();
   const response = await postJson(`${base}/api/v1/render/batch`, { format, items, dpi: Number(args.dpi === "600" ? 600 : 300) });
   if (!response.ok) die(await describeError(response));
   const data = await response.json();
@@ -250,7 +297,7 @@ async function cmdEr() {
   // /er/views 不校验 API Key（网页 studio 也用它），不做 Key 预检，避免一条误导性提示。
   const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
   if (!source.trim()) die("缺少 --file（概念 E-R DSL 或 CREATE TABLE 语句）。");
-  const format = args.format === "png" ? "png" : "svg";
+  const format = exportFormat();
   const response = await postJson(`${base}/api/v1/er/views`, { source, format, dpi: Number(args.dpi === "600" ? 600 : 300) });
   if (!response.ok) die(await describeError(response));
   const data = await response.json();
@@ -261,7 +308,7 @@ async function cmdEr() {
     if (!view) return;
     const file = path.join(outdir, `${name}.${format}`);
     if (format === "svg") writeSvg(file, view.svg);
-    else fs.writeFileSync(file, Buffer.from(view.pngBase64, "base64"));
+    else fs.writeFileSync(file, Buffer.from(format === "vsdx" ? view.vsdxBase64 : view.pngBase64, "base64"));
     console.log(`  ✓ ${name} → ${file}`);
   };
   console.log(`实体 ${data.entities.length} · 联系 ${data.relationships.length} · 集成提示 ${data.conflicts.length}`);
@@ -282,7 +329,7 @@ async function cmdUsecase() {
   // /usecase/views 同样不校验 API Key，不做 Key 预检。
   const source = typeof args.file === "string" ? fs.readFileSync(args.file, "utf8") : readStdin();
   if (!source.trim()) die("缺少 --file（用例图 DSL）。");
-  const format = args.format === "png" ? "png" : "svg";
+  const format = exportFormat();
   const response = await postJson(`${base}/api/v1/usecase/views`, { source, format, dpi: Number(args.dpi === "600" ? 600 : 300) });
   if (!response.ok) die(await describeError(response));
   const data = await response.json();
@@ -294,7 +341,7 @@ async function cmdUsecase() {
     if (!view) return;
     const file = path.join(outdir, `${name}.${format}`);
     if (format === "svg") writeSvg(file, view.svg);
-    else fs.writeFileSync(file, Buffer.from(view.pngBase64, "base64"));
+    else fs.writeFileSync(file, Buffer.from(format === "vsdx" ? view.vsdxBase64 : view.pngBase64, "base64"));
     console.log(`  ✓ ${name} → ${file}（用例 ${view.usecases.length}）`);
   };
 
@@ -350,12 +397,13 @@ const usage = `SE Diagram Studio CLI
   node ds.mjs doctor
   node ds.mjs kinds
   node ds.mjs syntax <kind>
-  node ds.mjs render --kind <kind> --file <dsl> [--out a.svg] [--format svg|png] [--dpi 600]
+  node ds.mjs render --kind <kind> --file <dsl> [--out a.svg] [--outline] [--format svg|png|vsdx] [--dpi 600]
                      [--theme color] [--orientation landscape] [--margin 15] [--caption "图 1"]
+  node ds.mjs paper  --file flow.dsl [--out flow.svg]       # 一张流程原图
   node ds.mjs check  --kind <kind> --file <dsl>
-  node ds.mjs batch  --manifest list.json [--outdir out] [--format png]
-  node ds.mjs er     --file schema.sql [--outdir out/er]
-  node ds.mjs ucv    --file usecase.dsl [--outdir out/usecase] [--format png] [--with-overview]
+  node ds.mjs batch  --manifest list.json [--outdir out] [--format svg|png|vsdx]
+  node ds.mjs er     --file schema.sql [--outdir out/er] [--format svg|png|vsdx]
+  node ds.mjs ucv    --file usecase.dsl [--outdir out/usecase] [--format svg|png|vsdx] [--with-overview]
                      # 用例图默认走这个：每个参与者 1 张，加 --with-overview 再多 1 张总览
 
   环境变量：DIAGRAM_STUDIO_BASE（当前 ${base || "未配置"}）· DIAGRAM_STUDIO_API_KEY`;
@@ -364,6 +412,7 @@ try {
   if (cmd === "doctor") await cmdDoctor();
   else if (cmd === "kinds") await cmdKinds();
   else if (cmd === "syntax") await cmdSyntax();
+  else if (cmd === "paper") await cmdPaperFlow();
   else if (cmd === "render") await cmdRender();
   else if (cmd === "check") await cmdCheck();
   else if (cmd === "batch") await cmdBatch();

@@ -13,7 +13,7 @@
 | 能力 | 说明 |
 |---|---|
 | 13 种图型 | 流程图 / 用例图 / 功能结构图 / 时序图 / 类图 / 数据流图 / 架构图 / 构件图 / 概念 E-R / 数据库 ERD / 泳道图 / 活动图 / 部署图 |
-| 输出格式 | SVG 矢量 + PNG（150 / 300 / 600 DPI） |
+| 输出格式 | 可编辑 SVG、PNG（300 / 600 DPI）和可编辑的 Visio 绘图（.vsdx） |
 | 规范自检 | 响应头 `X-Diagram-Errors` 返回规范问题条数，可先校验后出图 |
 | 批量渲染 | 单次请求最多 10 张 |
 | **SQL 体检** | 本地分析建表脚本，找出引擎推断不到的业务联系（审核人、发布者、多对多中介表），生成概念 E-R DSL 骨架 |
@@ -89,6 +89,9 @@ node scripts/ds.mjs render --kind flowchart --source "start S: 开始
 input I: 输入读者证号
 end E: 结束
 S -> I -> E" --out fig-3-1.svg
+
+# 直接生成可编辑的 Visio 文件
+node scripts/ds.mjs render --kind flowchart --file flow.dsl --out flow.vsdx
 
 # 出 600 DPI PNG，带图题
 node scripts/ds.mjs render --kind usecase --file uc.dsl \

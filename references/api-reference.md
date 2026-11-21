@@ -40,6 +40,10 @@
 
 返回 `image/svg+xml` 文本（矢量，可直接嵌论文或再编辑）。
 
+### POST /api/v1/render/vsdx
+
+请求体、鉴权和计费与单张 SVG 相同。成功响应为可编辑的 Visio 绘图二进制，Content-Type 为 `application/vnd.ms-visio.drawing`。按二进制保存为 `.vsdx`。批量请求传 `format: "vsdx"`，将每个成功项的 `base64` 解码为一个单页文件。
+
 ### POST /api/v1/render/png
 
 返回 `image/png` 二进制，`dpi` 取 `300`（默认）或 `600`。
@@ -98,7 +102,7 @@ curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
 
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
-| `format` | `svg` \| `png` \| `json` | `svg`/`png` 返回成品；`json` 只返回模型与校验结果（用于检查，不返回图形） |
+| `format` | `svg` \| `png` \| `vsdx` \| `json` | `svg`/`png`/`vsdx` 返回成品；`json` 只返回模型与校验结果（用于检查，不返回图形） |
 | `dpi` | `300` \| `600` | PNG 生效 |
 | `items` | `RenderRequest[]` | 1–10 个，字段同渲染接口（`kind` + `source` + 可选 `page`） |
 
@@ -129,7 +133,7 @@ curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
 | `source` | string | 概念 E-R DSL 或 SQL DDL |
-| `format` | `json` \| `svg` \| `png` | 默认 `json` |
+| `format` | `json` \| `svg` \| `png` \| `vsdx` | 默认 `json` |
 | `dpi` | `300` \| `600` | PNG 生效 |
 
 **响应（json）**：`title`、`conflicts`（视图集成冲突）、`entities`、`relationships`、`partials[]`（分 E-R 图）、`global`（总图·不含属性）、`globalPages[]`、`globalFullPages[]`（总图·含属性，每页最多 6 实体）、`layoutHint`、`rules`。
@@ -153,7 +157,7 @@ curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
 | `source` | string | 用例图 DSL（`actor` / `usecase` / `->` / `..>`），≤ 20,000 字符 |
-| `format` | `json` \| `svg` \| `png` | 默认 `json`（每张图都带 `svg`） |
+| `format` | `json` \| `svg` \| `png` \| `vsdx` | 默认 `json`（每张图都带 `svg`） |
 | `dpi` | `300` \| `600` | PNG 生效 |
 
 **响应（json）**：
@@ -222,3 +226,5 @@ curl -X POST "$DIAGRAM_STUDIO_BASE/api/v1/render/svg" \
 | 管理员 | 永久 |
 
 同一 DSL 在 30 分钟内只保留一条记录，不会无限堆积。**本地一定要自己存一份产物**，不要指望服务端当图床。
+
+分 E-R 图、用例视图和论文流程视图传 `format: "vsdx"`，每个视图对象（流程图为 `figures[]`）都有 `vsdxBase64` 和 `mime`。PNG 继续使用原有的 `pngBase64` 字段。
